@@ -86,8 +86,10 @@ module Nomadsl
         str k, v
       end
     elsif v.is_a? Hash
-      v.each do |k, v|
-        any k, v
+      block(k) do
+        v.each do |k, v|
+          any k, v
+        end
       end
     else
       die "An unexpected type was encountered."
