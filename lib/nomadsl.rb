@@ -523,4 +523,22 @@ export AWS_SESSION_TOKEN={{.Data.security_token}}
 DATA
     template(data: data, destination: "secrets/#{name}.env")
   end
+
+  def preloaded_vault_consul_creds(name, path)
+    data = <<DATA
+{{with secret "#{path}"}}
+CONSUL_HTTP_TOKEN={{.Data.token}}
+{{end}}
+DATA
+    template(data: data, destination: "secrets/#{name}.env", env: true)
+  end
+
+  def vault_consul_creds(name, path)
+    data = <<DATA
+{{with secret "#{path}"}}
+export CONSUL_HTTP_TOKEN={{.Data.token}}
+{{end}}
+DATA
+    template(data: data, destination: "secrets/#{name}.env")
+  end
 end
