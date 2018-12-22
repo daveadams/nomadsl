@@ -85,6 +85,21 @@ Will generate this output:
       }
     }
 
+## Using `nomadsl` as the interpreter
+
+As of 0.1.4, you can also set your shbang line to use `nomadsl` as the
+interpreter of the script. This will evaluate everything as Ruby, but with the
+necessary `nomadsl` boilerplate already built in:
+
+    #!/usr/bin/env nomadsl
+
+    job "nomadsl-example" do
+      # ...
+    end
+
+If the file is then marked as executable, you can simply run it to generate
+the corresponding Nomad job specification.
+
 ## Other uses
 
 By requiring only `nomadsl`, you can inject these methods into another class:

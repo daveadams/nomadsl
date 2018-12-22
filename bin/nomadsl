@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require 'nomadsl/dsl'
+
+eval ARGF.read

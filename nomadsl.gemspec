@@ -8,14 +8,17 @@ Gem::Specification.new do |s|
   s.date = Time.now.strftime('%Y-%m-%d')
   s.license = 'CC0'
   s.homepage = 'https://github.com/daveadams/nomadsl'
-  s.required_ruby_version = '>=2.4.0'
+  s.required_ruby_version = '>=2.5.0'
 
   s.summary = 'Ruby DSL for generating Nomad job specification files'
 
   s.require_paths = ['lib']
   s.files = Dir["lib/**/*.rb"] + [
+    'bin/nomadsl',
     'README.md',
     'LICENSE',
     'nomadsl.gemspec'
   ]
+  s.bindir = 'bin'
+  s.executables = ['nomadsl']
 end
