@@ -502,32 +502,14 @@ module Nomadsl
     end
   end
 
-  def preloaded_vault_aws_user_creds(name, path)
-    data = <<~DATA
-      {{with secret "#{path}"}}
-      AWS_ACCESS_KEY_ID={{.Data.access_key}}
-      AWS_SECRET_ACCESS_KEY={{.Data.secret_key}}
-      {{end}}
-    DATA
-    template(data: data, destination: "secrets/#{name}.env", env: true)
-  end
-
-  def vault_aws_user_creds(name, path)
-    data = <<~DATA
-      {{with secret "#{path}"}}
-      export AWS_ACCESS_KEY_ID={{.Data.access_key}}
-      export AWS_SECRET_ACCESS_KEY={{.Data.secret_key}}
-      {{end}}
-    DATA
-    template(data: data, destination: "secrets/#{name}.env")
-  end
-
   def preloaded_vault_aws_creds(name, path)
     data = <<~DATA
       {{with secret "#{path}"}}
       AWS_ACCESS_KEY_ID={{.Data.access_key}}
       AWS_SECRET_ACCESS_KEY={{.Data.secret_key}}
+      {{if .Data.security_token}}
       AWS_SESSION_TOKEN={{.Data.security_token}}
+      {{end}}
       {{end}}
     DATA
     template(data: data, destination: "secrets/#{name}.env", env: true)
@@ -538,7 +520,9 @@ module Nomadsl
       {{with secret "#{path}"}}
       export AWS_ACCESS_KEY_ID={{.Data.access_key}}
       export AWS_SECRET_ACCESS_KEY={{.Data.secret_key}}
+      {{if .Data.security_token}}
       export AWS_SESSION_TOKEN={{.Data.security_token}}
+      {{end}}
       {{end}}
     DATA
     template(data: data, destination: "secrets/#{name}.env")
