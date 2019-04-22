@@ -69,6 +69,21 @@ module Nomadsl
     @out << "#{v.chomp}\nBLOB\n"
   end
 
+  def strmap!(k, v)
+    die "Value for '#{k}' is nil" if v.nil?
+    strmap(k, v)
+  end
+
+  def strmap(k, v)
+    if v
+      block(k) do
+        v.each do |k2,v2|
+          str k2, v2
+        end
+      end
+    end
+  end
+
   # try really hard
   def any(k, v)
     if v.nil?
@@ -137,13 +152,18 @@ module Nomadsl
       str! :source, source
       str :destination, destination
       str :mode, mode
-      if options
-        block(:options) do
-          options.each do |k,v|
-            str k, v
-          end
-        end
-      end
+      strmap :options, options
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/affinity.html
+  def affinity(attribute: nil, operator: nil, value: nil, weight: nil)
+    only :job, :group, :task, :device
+    block(:affinity) do
+      str! :attribute, attribute
+      str :operator, operator
+      str! :value, value
+      int :weight, weight
     end
   end
 
@@ -207,7 +227,7 @@ module Nomadsl
 
   # https://www.nomadproject.io/docs/job-specification/constraint.html
   def constraint(attribute: nil, operator: nil, value: nil)
-    only :job, :group, :task
+    only :job, :group, :task, :device
     block(:constraint) do
       str :attribute, attribute
       str :operator, operator
@@ -221,6 +241,15 @@ module Nomadsl
     list! :datacenters, d
   end
 
+  # https://www.nomadproject.io/docs/job-specification/device.html
+  def device(name: nil, count: nil)
+    only :resources
+    block(:device, name) do
+      int :count, count
+      yield if block_given?
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/dispatch_payload.html
   def dispatch_payload(file:)
     only :task
@@ -232,11 +261,7 @@ module Nomadsl
   # https://www.nomadproject.io/docs/job-specification/env.html
   def env(**opts)
     only :task
-    block(:env) do
-      opts.each do |k,v|
-        str k, v
-      end
-    end
+    strmap :env, opts
   end
 
   # https://www.nomadproject.io/docs/job-specification/ephemeral_disk.html
@@ -294,11 +319,7 @@ module Nomadsl
   # https://www.nomadproject.io/docs/job-specification/meta.html
   def meta(**opts)
     only :job, :group, :task
-    block(:meta) do
-      opts.each do |k,v|
-        str k, v
-      end
-    end
+    strmap :meta, opts
   end
 
   # https://www.nomadproject.io/docs/job-specification/migrate.html
@@ -421,6 +442,25 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/spread.html
+  def spread(attribute: nil, weight: nil)
+    only :job, :group, :task
+    block(:spread) do
+      str! :attribute, attribute
+      int :weight, weight
+      yield if block_given?
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/spread.html#target-parameters
+  def target(name: nil, value: nil, percent: nil)
+    only :spread
+    block(:target, name) do
+      str :value, value
+      str :weight, weight
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/task.html
   def task(t, driver: "exec", kill_signal: nil, kill_timeout: nil, leader: nil, shutdown_delay: nil, user: nil)
     only :group
@@ -502,47 +542,41 @@ module Nomadsl
     end
   end
 
-  def preloaded_vault_aws_creds(name, path)
-    data = <<~DATA
+  def _vault_aws_creds(path, export)
+    prefix = export ? "export " : ""
+    <<~DATA
       {{with secret "#{path}"}}
-      AWS_ACCESS_KEY_ID={{.Data.access_key}}
-      AWS_SECRET_ACCESS_KEY={{.Data.secret_key}}
+      #{prefix}AWS_ACCESS_KEY_ID={{.Data.access_key}}
+      #{prefix}AWS_SECRET_ACCESS_KEY={{.Data.secret_key}}
       {{if .Data.security_token}}
-      AWS_SESSION_TOKEN={{.Data.security_token}}
+      #{prefix}AWS_SESSION_TOKEN={{.Data.security_token}}
       {{end}}
       {{end}}
     DATA
-    template(data: data, destination: "secrets/#{name}.env", env: true)
+  end
+
+  def preloaded_vault_aws_creds(name, path)
+    template(data: _vault_aws_creds(path, false), destination: "secrets/#{name}.env", env: true)
   end
 
   def vault_aws_creds(name, path)
-    data = <<~DATA
+    template(data: _vault_aws_creds(path, true), destination: "secrets/#{name}.env")
+  end
+
+  def _vault_consul_creds(path, export)
+    prefix = export ? "export " : ""
+    <<~DATA
       {{with secret "#{path}"}}
-      export AWS_ACCESS_KEY_ID={{.Data.access_key}}
-      export AWS_SECRET_ACCESS_KEY={{.Data.secret_key}}
-      {{if .Data.security_token}}
-      export AWS_SESSION_TOKEN={{.Data.security_token}}
-      {{end}}
+      #{prefix}CONSUL_HTTP_TOKEN={{.Data.token}}
       {{end}}
     DATA
-    template(data: data, destination: "secrets/#{name}.env")
   end
 
   def preloaded_vault_consul_creds(name, path)
-    data = <<DATA
-{{with secret "#{path}"}}
-CONSUL_HTTP_TOKEN={{.Data.token}}
-{{end}}
-DATA
-    template(data: data, destination: "secrets/#{name}.env", env: true)
+    template(data: _vault_consul_creds(path, false), destination: "secrets/#{name}.env", env: true)
   end
 
   def vault_consul_creds(name, path)
-    data = <<DATA
-{{with secret "#{path}"}}
-export CONSUL_HTTP_TOKEN={{.Data.token}}
-{{end}}
-DATA
-    template(data: data, destination: "secrets/#{name}.env")
+    template(data: _vault_consul_creds(path, true), destination: "secrets/#{name}.env")
   end
 end
