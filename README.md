@@ -2,9 +2,9 @@
 
 Nomadsl is a Ruby DSL for generating Nomad job specification files.
 
-Methods mapping to keys and attributes described in the Nomad Job Specification
-(https://www.nomadproject.io/docs/job-specification/index.html) are defined in
-an includable module.
+Methods mapping to keys and attributes described in the
+[Nomad Job Specification](https://www.nomadproject.io/docs/job-specification/index.html)
+are defined in an includable module.
 
 Nomadsl supports Nomad configuration syntax through version 0.9.0. The mapping
 of key and attribute names to method names is generally one-to-one, but you can
@@ -89,9 +89,9 @@ Will generate this output:
 
 ## Using `nomadsl` as the interpreter
 
-As of 0.1.4, you can also set your shbang line to use `nomadsl` as the
-interpreter of the script. This will evaluate everything as Ruby, but with the
-necessary `nomadsl` boilerplate already built in:
+You can also set your shbang line to use `nomadsl` as the interpreter of the
+script. This will evaluate everything as Ruby, but with the necessary `nomadsl`
+boilerplate already built in:
 
     #!/usr/bin/env nomadsl
 
