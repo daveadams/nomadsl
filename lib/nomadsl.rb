@@ -544,8 +544,12 @@ module Nomadsl
 
   def _vault_aws_creds(path, export)
     prefix = export ? "export " : ""
+    path = path.is_a?(String) ? [path] : path
+    args = path.reduce("") do |concat, str|
+      concat = "#{concat} \"#{str}\""
+    end
     <<~DATA
-      {{with secret "#{path}"}}
+      {{with secret #{args}}}
       #{prefix}AWS_ACCESS_KEY_ID={{.Data.access_key}}
       #{prefix}AWS_SECRET_ACCESS_KEY={{.Data.secret_key}}
       {{if .Data.security_token}}
@@ -565,8 +569,12 @@ module Nomadsl
 
   def _vault_consul_creds(path, export)
     prefix = export ? "export " : ""
+    path = path.is_a?(String) ? [path] : path
+    args = path.reduce("") do |concat, str|
+      concat = "#{concat} \"#{str}\""
+    end
     <<~DATA
-      {{with secret "#{path}"}}
+      {{with secret #{args}}}
       #{prefix}CONSUL_HTTP_TOKEN={{.Data.token}}
       {{end}}
     DATA
