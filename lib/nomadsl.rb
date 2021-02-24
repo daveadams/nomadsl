@@ -13,6 +13,10 @@ module Nomadsl
     @nomadsl_print = b
   end
 
+  def parent
+    @stack.last
+  end
+
   def only(*levels)
     unless levels.include? @stack.last
       loc = caller_locations(1,1)[0]
@@ -168,7 +172,7 @@ module Nomadsl
   end
 
   # https://www.nomadproject.io/docs/job-specification/service.html#check-parameters
-  def check(address_mode: nil, args: nil, command: nil, grpc_service: nil, grpc_use_tls: nil, initial_status: nil, interval: nil, method: nil, name: nil, path: nil, port: nil, protocol: nil, timeout: nil, type: nil, tls_skip_verify: nil)
+  def check(address_mode: nil, args: nil, command: nil, grpc_service: nil, grpc_use_tls: nil, initial_status: nil, interval: nil, method: nil, name: nil, path: nil, expose: nil, port: nil, protocol: nil, task: nil, timeout: nil, type: nil, tls_skip_verify: nil)
     only :service
     block(:check) do
       str :address_mode, address_mode
@@ -177,14 +181,16 @@ module Nomadsl
       str :grpc_service, grpc_service
       bool :grpc_use_tls, grpc_use_tls
       str :initial_status, initial_status
-      str :interval, interval
+      str! :interval, interval
       str :method, method
       str :name, name
       str :path, path
+      bool :expose, expose
       str :port, port
       str :protocol, protocol
-      str :timeout, timeout
-      str :type, type
+      str :task, task
+      str! :timeout, timeout
+      str! :type, type
       bool :tls_skip_verify, tls_skip_verify
       yield if block_given?
     end
@@ -202,7 +208,7 @@ module Nomadsl
 
   # https://www.nomadproject.io/docs/job-specification/task.html#config
   def config(**opts)
-    only :task
+    only :task, :sidecar_task, :proxy
     config_method = "__config_#{@driver}".to_sym
     if private_methods.include?(config_method)
       send(config_method, **opts)
@@ -224,6 +230,14 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/connect
+  def connect(native: nil)
+    only :service
+    block(:connect) do
+      bool :native, native
+      yield if block_given?
+    end
+  end
 
   # https://www.nomadproject.io/docs/job-specification/constraint.html
   def constraint(attribute: nil, operator: nil, value: nil)
@@ -232,6 +246,16 @@ module Nomadsl
       str :attribute, attribute
       str :operator, operator
       str :value, value
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/csi_plugin
+  def csi_plugin(id: nil, type: nil, mount_dir: nil)
+    only :volume
+    block(:csi_plugin) do
+      str! :id, id
+      str! :type, type
+      str! :mount_dir, mount_dir
     end
   end
 
@@ -258,9 +282,19 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/network#dns-parameters
+  def dns(servers: nil, searches: nil, options: nil)
+    only :network
+    block(:dns) do
+      list :servers, servers
+      list :searches, searches
+      list :options, options
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/env.html
   def env(**opts)
-    only :task
+    only :task, :sidecar_task
     strmap :env, opts
   end
 
@@ -274,11 +308,21 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/expose
+  def expose
+    only :proxy
+    block(:expose) do
+      yield if block_given?
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/group.html
-  def group(name, count: nil)
+  def group(name, count: nil, shutdown_delay: nil, stop_after_client_disconnect: nil)
     only :job
     block(:group, name) do
       int :count, count
+      str :shutdown_delay, shutdown_delay
+      str :stop_after_client_disconnect, stop_after_client_disconnect
       yield
     end
   end
@@ -288,6 +332,15 @@ module Nomadsl
     only :check
     block(:header) do
       list! name, values
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/lifecycle
+  def lifecycle(hook: nil, sidecar: nil)
+    only :task
+    block(:lifecycle) do
+      str :hook, hook
+      bool :sidecar, sidecar
     end
   end
 
@@ -309,7 +362,7 @@ module Nomadsl
 
   # https://www.nomadproject.io/docs/job-specification/logs.html
   def logs(max_files: nil, max_file_size: nil)
-    only :task
+    only :task, :sidecar_task
     block(:logs) do
       int :max_files, max_files
       int :max_file_size, max_file_size
@@ -318,7 +371,7 @@ module Nomadsl
 
   # https://www.nomadproject.io/docs/job-specification/meta.html
   def meta(**opts)
-    only :job, :group, :task
+    only :job, :group, :task, :sidecar_task, :region
     strmap :meta, opts
   end
 
@@ -330,6 +383,14 @@ module Nomadsl
       str :health_check, health_check
       str :min_healthy_time, min_healthy_time
       str :healthy_deadline, healthy_deadline
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/multiregion
+  def multiregion
+    only :job
+    block(:multiregion) do
+      yield if block_given?
     end
   end
 
@@ -360,6 +421,17 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/expose#path-parameters
+  def path(path: nil, protocol: nil, local_path_port: nil)
+    only :expose
+    block(:path) do
+      str! :path, path
+      str! :protocol, protocol
+      int! :local_path_port, local_path_port
+      yield if block_given?
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/periodic.html
   def periodic(cron: nil, prohibit_overlap: nil, time_zone: nil)
     only :job
@@ -370,9 +442,15 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/scaling#policy
+  def policy(**args)
+    only :scaling
+    any :policy, args
+  end
+
   # https://www.nomadproject.io/docs/job-specification/network.html#port
   def port(n, static: nil)
-    only :network
+    only :network, :path
     if static
       block(:port, n) do
         int :static, static
@@ -388,10 +466,29 @@ module Nomadsl
     int! :priority, p
   end
 
+  # https://www.nomadproject.io/docs/job-specification/proxy
+  def proxy(local_service_address: nil, local_service_port: nil)
+    only :sidecar_service
+    block(:proxy) do
+      str :local_service_address, local_service_address
+      int :local_service_port, local_service_port
+      yield if block_given?
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/job.html#region
-  def region(r)
-    only :job
-    str! :region, r
+  # https://www.nomadproject.io/docs/job-specification/multiregion#region-parameters
+  def region(name, count: nil, datacenters: nil)
+    only :job, :multiregion
+    if parent == :job
+      str! :region, name
+    elsif parent == :multiregion
+      block(:region, name) do
+        int :count, count
+        list :datacenters, datacenters
+        yield if block_given?
+      end
+    end
   end
 
   # https://www.nomadproject.io/docs/job-specification/reschedule.html
@@ -409,10 +506,9 @@ module Nomadsl
 
   # https://www.nomadproject.io/docs/job-specification/resources.html
   def resources(cpu: nil, iops: nil, memory: nil)
-    only :task
+    only :task, :sidecar_task
     block(:resources) do
       int :cpu, cpu
-      int :iops, iops
       int :memory, memory
       yield if block_given?
     end
@@ -429,6 +525,17 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/scaling
+  def scaling(min: nil, max: nil, enabled: nil)
+    only :group
+    block(:scaling) do
+      int :min, min
+      int! :max, max
+      bool :enabled, enabled
+      yield if block_given?
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/service.html
   def service(address_mode: nil, canary_tags: nil, name: nil, port: nil, tags: nil)
     only :task
@@ -442,6 +549,30 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/sidecar_service
+  def sidecar_service(tags: nil, port: nil)
+    only :connect
+    block(:sidecar_service) do
+      list :tags, tags
+      int :port, port
+      yield if block_given?
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/sidecar_task
+  def sidecar_task(name: nil, driver: nil, user: nil, logs: nil, kill_timeout: nil, shutdown_delay: nil, kill_signal: nil)
+    only :connect
+    block(:sidecar_task) do
+      str :name, name
+      str :driver, driver
+      str :user, user
+      str :kill_timeout, kill_timeout
+      str :shutdown_delay, shutdown_delay
+      str :kill_signal, kill_signal
+      yielf if block_given?
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/spread.html
   def spread(attribute: nil, weight: nil)
     only :job, :group, :task
@@ -449,6 +580,15 @@ module Nomadsl
       str! :attribute, attribute
       int :weight, weight
       yield if block_given?
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/multiregion#strategy-parameters
+  def strategy(max_parallel: nil, on_failure: nil)
+    only :multiregion
+    block(:strategy) do
+      int :max_parallel, max_parallel
+      str :on_failure, on_failure
     end
   end
 
@@ -516,6 +656,15 @@ module Nomadsl
     end
   end
 
+  # https://www.nomadproject.io/docs/job-specification/upstreams
+  def upstreams(destination_name: nil, local_bind_port: nil)
+    only :proxy
+    block(:upstreams) do
+      str! :destination_name, destination_name
+      int! :local_bind_port, local_bind_port
+    end
+  end
+
   # https://www.nomadproject.io/docs/job-specification/vault.html
   def vault(change_mode: nil, change_token: nil, env: nil, policies: nil)
     only :job, :group, :task
@@ -524,6 +673,26 @@ module Nomadsl
       str :change_token, change_token
       bool :env, env
       list :policies, policies
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/volume
+  def volume(name, type: nil, source: nil, read_only: nil)
+    only :group
+    block(:volume, name) do
+      str :type, type
+      str! :source, source
+      bool :read_only, read_only
+    end
+  end
+
+  # https://www.nomadproject.io/docs/job-specification/volume_mount
+  def volume_mount(volume: nil, destination: nil, read_only: nil)
+    only :task
+    block(:volume_mount) do
+      str! :volume, volume
+      str! :destination, destination
+      bool :read_only, read_only
     end
   end
 

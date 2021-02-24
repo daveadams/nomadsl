@@ -6,7 +6,7 @@ Methods mapping to keys and attributes described in the
 [Nomad Job Specification](https://www.nomadproject.io/docs/job-specification/index.html)
 are defined in an includable module.
 
-Nomadsl supports Nomad configuration syntax through version 0.9.0. The mapping
+Nomadsl supports Nomad configuration syntax through version 0.12.0. The mapping
 of key and attribute names to method names is generally one-to-one, but you can
 specify arbitrary configuration values to be rendered if necessary.
 
